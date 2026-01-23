@@ -1,0 +1,6 @@
+uuid,name,description,created_at,updated_at
+4498cf39-7fe2-4059-9571-6e65632eb283,admin,Full access to all system features,2025-04-22 09:05:15.146+00,2025-04-22 09:05:15.146+00
+7d240ffe-f3f3-4015-9aa7-18a3acc854f7,user,Regular user with limited access,2025-04-22 09:05:15.146+00,2025-04-22 09:05:15.146+00
+6385517c-60e2-4866-873d-7859a28c2de3,master_admin,Super admin with all privileges including role management,2025-04-22 09:05:15.146+00,2025-04-22 09:05:15.146+00
+d953a3bd-e736-4757-a56b-f2cf1e11bcd8,customer_support,Support staff with view-only access to most features,2025-04-22 09:05:15.146+00,2025-04-22 09:05:15.146+00
+f00e01b9-ffaa-49c6-b680-7348ef7797a4,sub_admin,Admin with restricted privileges,2025-04-22 09:05:15.146+00,2025-04-22 09:05:15.146+00

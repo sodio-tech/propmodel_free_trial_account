@@ -1,0 +1,50 @@
+{
+  "name": "propmodel_challenge",
+  "version": "1.0.0",
+  "description": "This is a user repository",
+  "main": "server.js",
+  "type": "module",
+  "scripts": {
+    "test": "cross-env NODE_OPTIONS=--experimental-vm-modules jest",
+    "test:watch": "cross-env NODE_OPTIONS=--experimental-vm-modules jest --watch",
+    "dev": "nodemon src/server.js",
+    "create-migration": "node src/db/command/createMigration.js",
+    "start-migration": "node src/db/command/runMigrations.js",
+    "start-sp-migration": "node src/db/command/runSpecificMigration.js",
+    "rollback-migration": "node src/db/command/rollbackMigrations.js",
+    "rollback-sp-migration": "node src/db/command/rollbackSpecific.js",
+    "seed": "node src/db/command/runSeeds.js",
+    "specific-seed": "node src/db/command/runSpecificSeed.js"
+  },
+  "keywords": [],
+  "author": "Sodio Tech - Sandeep Chavda",
+  "license": "ISC",
+  "dependencies": {
+    "@aws-sdk/client-sqs": "^3.758.0",
+    "@faker-js/faker": "^9.7.0",
+    "axios": "^1.8.4",
+    "bcrypt": "^5.1.1",
+    "bcryptjs": "^3.0.2",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "helmet": "^8.0.0",
+    "joi": "^17.13.3",
+    "jsonwebtoken": "^9.0.2",
+    "knex": "^3.1.0",
+    "moment": "^2.30.1",
+    "moment-timezone": "^0.5.47",
+    "pg": "^8.13.3",
+    "propmodel_api_core": "github:sodio-tech/propmodel_api_core",
+    "redis": "^4.7.0",
+    "propmodel_sentry_core": "github:sodio-tech/propmodel_sentry"
+  },
+  "jest": {
+    "transform": {}
+  },
+  "devDependencies": {
+    "nodemon": "^3.1.9",
+    "sqlite3": "^5.1.7",
+    "supertest": "^7.0.0"
+  }
+}
