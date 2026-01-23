@@ -15,9 +15,9 @@ import challengeController from "../../controllers/v2/challengesController.js";
 const router = express.Router();
 
 router.post(
-  "/admin/challenges/award",
+  "/challenges/free-trail",
   tokenValidation,
-  challengeController.awardChallenge
+  challengeController.freeTrail
 );
 
 export default router;

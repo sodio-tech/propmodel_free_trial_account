@@ -6,8 +6,10 @@
 
 import { knex } from "propmodel_api_core";
 import { captureException } from "propmodel_sentry_core";
-import mt5Service from "./mt5Service.js";
+import mt5Service from "../mt5Service.js";
+import mt5ServiceV2 from "./mt5Service.js";
 import { storeActivityLog } from "../../helper/common_function.js";
+import PermissionManager from "../../helper/permission_manager.js";
 import axios from "axios";
 import dotenv from "dotenv";
 dotenv.config();
@@ -97,122 +99,95 @@ const emailService = async (url, data, method = "POST") => {
 };
 
 /**
- * Award challenge
+ * Free trail - Creates a free trail account for the authenticated user
+ * using a free trial code. This uses the SAME logic as awardChallenge,
+ * only the input payload is different (free_trail_code instead of award parameters)
  *
- * @returns {Object} - Challenge awarded
+ * @returns {Object} - Free trail account created
  */
-const awardChallenge = async (requestBody, tokenData) => {
+const freeTrail = async (requestBody, tokenData) => {
   const loggedInUserUuid = tokenData.uuid;
 
   try {
-    const {
-      platform_name,
-      initial_balance,
-      account_stage,
-      account_type,
-      award_type,
-      user_emails,
-      subtags_uuids = [],
-      discount_code,
-      payment_transaction_id,
-    } = requestBody;
+    const { free_trail_code } = requestBody;
 
-    // Validate discount code exists by name (if provided and not empty)
-    let discountCodeRecord = null;
-    if (discount_code && discount_code.trim() !== "") {
-      discountCodeRecord = await knex("discount_codes")
-        .where("name", discount_code)
-        .first();
+    // NEW: Validate free trial code exists and is active (status = 1)
+    const freeTrialCodeRecord = await knex("free_trial_codes")
+      .where("code", free_trail_code)
+      .where("status", 1)
+      .first();
 
-      if (!discountCodeRecord) {
-        throw new Error(`Discount code with name "${discount_code}" does not exist`);
-      }
+    if (!freeTrialCodeRecord) {
+      throw new Error("Invalid free trial code");
     }
 
-    // Uppercase award_type
-    const uppercaseAwardType = award_type?.toUpperCase();
+    // NEW: Get active free trial settings to find platform_group_uuid
+    const freeTrialSettings = await knex("free_trial_settings")
+      .where("status", 1)
+      .first();
 
-     // Get challenge details
+    if (!freeTrialSettings) {
+      throw new Error("Free trial settings not configured");
+    }
+
+    const platformGroupUuid = freeTrialSettings.platform_group_uuid;
     const existingGroup = await knex("platform_groups")
-      .where({
-        initial_balance,
-        account_stage,
-        account_type,
-        platform_name,
-        group_type: "challenge",
-      })
+      .where("uuid", platformGroupUuid)
       .first();
 
     if (!existingGroup) {
-      throw new Error("Group does not exist with the given UUID");
+      throw new Error("Platform group not found for this free trial");
     }
 
-    let users = [];
-    let failedUsers = [];
+    // Get the authenticated user (same as original logic gets users from user_emails)
+    const user = await knex("users")
+      .where("uuid", loggedInUserUuid)
+      .first();
 
-    if(user_emails && user_emails.length > 0) {
-      users = await knex("users").whereIn("email", user_emails);
-      const foundEmails = users.map((user) => user.email);
-      const allExist = user_emails.every((email) => foundEmails.includes(email));
-      if (!allExist) {
-        const missing = user_emails.filter((email) => !foundEmails.includes(email));
-        failedUsers.push(...missing);
-        // throw new Error(`some users does not exists with emails: ${missing}`);
-      }
+    if (!user) {
+      throw new Error("User not found");
     }
 
-    // Validate subtags if provided
-    if (subtags_uuids && subtags_uuids.length > 0) {
-      const existingSubtags = await knex("subtags")
-        .whereIn("uuid", subtags_uuids)
-        .select("uuid");
-
-      const foundSubtagUuids = existingSubtags.map((subtag) => subtag.uuid);
-      const missingSubtags = subtags_uuids.filter(
-        (uuid) => !foundSubtagUuids.includes(uuid)
-      );
-
-      if (missingSubtags.length > 0) {
-        throw new Error(
-          `Some subtags do not exist with IDs: ${missingSubtags.join(", ")}`
-        );
-      }
-    }
-
-    // Process users concurrently for better performance
-    const results = await Promise.all(
-      users.map((user) => {
-        return create_platform_account(
-          existingGroup,
-          user,
-          loggedInUserUuid,
-          subtags_uuids,
-          uppercaseAwardType,
-          discountCodeRecord,
-          payment_transaction_id
-        );
-      })
+    // Use the same create_platform_account function as original award logic
+    // Pass empty arrays for optional params since free trail doesn't use them
+    const result = await create_platform_account(
+      existingGroup,
+      user,
+      loggedInUserUuid,
+      [], // subtags_uuids
+      "FREE_TRAIL", // award_type
+      null, // discountCodeRecord
+      null // payment_transaction_id
     );
 
-    results.forEach((result, idx) => {
-      if (result) {
-        // If create_platform_account returns user email, it indicates a failed user
-        failedUsers.push(result);
-      }
-    });
+    // NEW: Mark the free trial code as used
+    await knex("free_trial_codes")
+      .where("code", free_trail_code)
+      .update({
+        status: 0,
+        used_by_user_uuid: loggedInUserUuid,
+        used_by_platform_account_uuid: result?.platform_account_uuid || null,
+      });
 
-    return { failedUsers };
+    // Return same format as original awardChallenge logic
+    return {
+      platform_login_id: result?.platform_login_id,
+      account_type: result?.account_type,
+      account_stage: result?.account_stage,
+      initial_balance: result?.initial_balance,
+    };
   } catch (error) {
-    console.error("Error awarding a challenge:", error);
+    console.error("Error creating free trail:", error);
     captureException(error, {
-      operation: "service_awardChallenge_v2",
+      operation: "service_freeTrail_v2",
       user: { id: tokenData?.uuid || tokenData?.id },
       extra: { requestBody },
     });
-    throw error; // Preserve the original detailed error message
+    throw error;
   }
 };
 
+// EXACT SAME create_platform_account function as original awardChallenge logic
 async function create_platform_account(
   platform_group,
   user,
@@ -381,13 +356,13 @@ async function create_platform_account(
 
 
     //Send email to new user for purchase
-    await sendEmailForNewPurchase(platformRes,user);
+    await sendEmailForNewPurchase(platformRes, user);
 
     // Create a tag record for this platform account
     await knex("tags").insert({
       platform_account_uuid: platformRes.uuid,
-      challenge_type: "Challenge", // Since this is award challenge
-      acquisition_method: "Awarded", // Since this is award challenge
+      challenge_type: "Challenge",
+      acquisition_method: "Awarded",
     });
 
     // Create tag and attach subtags if provided
@@ -410,7 +385,13 @@ async function create_platform_account(
       created_by: loggedInUserUuid,
     });
 
-    return null;
+    return {
+      platform_account_uuid: platformRes.uuid,
+      platform_login_id: platformRes.platform_login_id,
+      initial_balance: platformRes.initial_balance,
+      account_type: platformRes.account_type,
+      account_stage: platformRes.account_stage,
+    };
   } catch (error) {
     console.error("Error creating platform account:", error);
     captureException(error, {
@@ -422,7 +403,7 @@ async function create_platform_account(
   }
 }
 
-const sendEmailForNewPurchase = async (platformAccount,userData) => {
+const sendEmailForNewPurchase = async (platformAccount, userData) => {
    // Send challenge credentials email notification
    const apiUrl = `${process.env.EMAIL_API_URL}/api/v1/send-email`;
 
@@ -451,5 +432,5 @@ const sendEmailForNewPurchase = async (platformAccount,userData) => {
 }
 
 export default {
-  awardChallenge,
+  freeTrail,
 };
