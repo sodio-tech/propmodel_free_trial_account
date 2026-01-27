@@ -17,7 +17,7 @@ const router = express.Router();
 router.post(
   "/challenges/free-trail",
   tokenValidation,
-  challengeController.freeTrail
+  challengeController.createFreeTrailAccount
 );
 
 export default router;

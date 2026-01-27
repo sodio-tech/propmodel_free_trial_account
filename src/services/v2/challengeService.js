@@ -7,9 +7,7 @@
 import { knex } from "propmodel_api_core";
 import { captureException } from "propmodel_sentry_core";
 import mt5Service from "../mt5Service.js";
-import mt5ServiceV2 from "./mt5Service.js";
 import { storeActivityLog } from "../../helper/common_function.js";
-import PermissionManager from "../../helper/permission_manager.js";
 import axios from "axios";
 import dotenv from "dotenv";
 dotenv.config();
@@ -27,34 +25,6 @@ const getValueOrDefault = (platformGroupValue, defaultValue) => {
     return platformGroupValue;
   }
   return defaultValue !== null && defaultValue !== undefined ? defaultValue : 0;
-};
-
-/**
- * Helper function to get a single phase-wise setting value
- * @param {string} platformGroupUuid - Platform group UUID
- * @param {string} settingName - Setting name (e.g., 'max_drawdown', 'profit_target')
- * @param {string} phaseKey - Phase key (e.g., 'phase_1', 'phase_2', 'funded')
- * @returns {*} - Setting value or null if not found
- */
-const getPhaseWiseSetting = async (platformGroupUuid, settingName, phaseKey) => {
-  const setting = await knex("phase_wise_settings")
-    .where({
-      platform_group_uuid: platformGroupUuid,
-      setting_name: settingName,
-      phase_key: phaseKey,
-    })
-    .first();
-
-  if (!setting || setting.phase_value === null || setting.phase_value === undefined) {
-    return null;
-  }
-
-  // Convert to number if it's a numeric string
-  const parsedValue = !isNaN(setting.phase_value)
-    ? parseFloat(setting.phase_value)
-    : setting.phase_value;
-
-  return parsedValue;
 };
 
 /**
@@ -105,7 +75,7 @@ const emailService = async (url, data, method = "POST") => {
  *
  * @returns {Object} - Free trail account created
  */
-const freeTrail = async (requestBody, tokenData) => {
+const createFreeTrailAccount = async (requestBody, tokenData) => {
   const loggedInUserUuid = tokenData.uuid;
 
   try {
@@ -432,5 +402,5 @@ const sendEmailForNewPurchase = async (platformAccount, userData) => {
 }
 
 export default {
-  freeTrail,
+  createFreeTrailAccount,
 };

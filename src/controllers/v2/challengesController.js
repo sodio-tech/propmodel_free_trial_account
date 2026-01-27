@@ -12,7 +12,7 @@ import { freeTrailRequest } from "../../requests/v2/awardChallengeRequest.js";
 /**
  * Free trail
  */
-const freeTrail = controllerWrapper(async (req, res) => {
+const createFreeTrailAccount = controllerWrapper(async (req, res) => {
   try {
     const requestBody = req.body;
     const tokenData = req.tokenData;
@@ -20,7 +20,7 @@ const freeTrail = controllerWrapper(async (req, res) => {
     await freeTrailRequest.validateAsync(requestBody);
 
     // Get result from service
-    const result = await challengeService.freeTrail(
+    const result = await challengeService.createFreeTrailAccount(
       requestBody,
       tokenData
     );
@@ -31,9 +31,9 @@ const freeTrail = controllerWrapper(async (req, res) => {
 
     return res.success("free_trail_created", result, 200);
   } catch (error) {
-    console.error("Error in freeTrail:", error);
+    console.error("Error in createFreeTrailAccount:", error);
     captureException(error, {
-      operation: "controller_freeTrail_v2",
+      operation: "createFreeTrailAccount",
       user: { id: req.tokenData?.uuid || req.tokenData?.id },
       extra: { requestBody: req.body },
     });
@@ -42,5 +42,5 @@ const freeTrail = controllerWrapper(async (req, res) => {
 });
 
 export default {
-  freeTrail,
+  createFreeTrailAccount,
 };
