@@ -6,7 +6,7 @@
 
 import { knex } from "propmodel_api_core";
 import { captureException } from "propmodel_sentry_core";
-import mt5Service from "../mt5Service.js";
+import mt5Service from "./mt5Service.js";
 import { storeActivityLog } from "../../helper/common_function.js";
 import axios from "axios";
 import dotenv from "dotenv";
