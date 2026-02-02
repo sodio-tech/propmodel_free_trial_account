@@ -1,6 +1,6 @@
 /**********************************
- * Desc: Define routes for test module v2.
- * Date: 30/01/2026
+ * Desc: Define routes for mastery module v2.
+ * Date: 02/02/2026
  **********************************/
 
 import express from "express";
@@ -14,7 +14,7 @@ import testController from "../../controllers/v2/testController.js";
 const router = express.Router();
 
 router.post(
-  "/test/hello-world",
+  "/mastery/referral-ninja/update-progress",
   tokenValidation,
   testController.updateReferralNinjaMasteryProgress
 );
