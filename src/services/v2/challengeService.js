@@ -171,6 +171,15 @@ async function create_platform_account(
     // Get default challenge settings (singleton) for fallback values (for non-phase-wise settings)
     const defaultSettings = await knex("default_challenge_settings").first();
 
+    // Get advanced challenge settings for the platform_group
+    // This contains account_leverage and other non-phase-wise settings
+    const platform_group_advanced_settings = await knex(
+      "advanced_challenge_settings"
+    )
+      .select("*")
+      .where("platform_group_uuid", platform_group.uuid)
+      .first();
+
     // Get phase_1 settings from phase_wise_settings table
     // These settings are now stored per phase in phase_wise_settings
     const phase1Settings = await getPhaseWiseSettings(platform_group.uuid, "phase_1");
@@ -182,14 +191,14 @@ async function create_platform_account(
     const consistency_score = phase1Settings.consistency_score ?? 0;
     const min_trading_days = phase1Settings.min_trading_days ?? 0;
 
-    // Non-phase-wise settings: use platform_group or fallback to default_challenge_settings
+    // Non-phase-wise settings: use advanced_challenge_settings first, then platform_group, then default_challenge_settings
     const account_leverage = getValueOrDefault(
-      platform_group.account_leverage,
-      defaultSettings?.account_leverage
+      platform_group_advanced_settings?.account_leverage,
+      getValueOrDefault(platform_group.account_leverage, defaultSettings?.account_leverage)
     );
     const profit_split = getValueOrDefault(
-      platform_group.profit_split,
-      defaultSettings?.profit_split
+      platform_group_advanced_settings?.profit_split,
+      getValueOrDefault(platform_group.profit_split, defaultSettings?.profit_split)
     );
 
     const payload = {
@@ -254,14 +263,6 @@ async function create_platform_account(
       .insert(purchaseData)
       .returning("*")
       .then((rows) => rows[0]);
-
-    // Get existing advanced settings from platform group (if any) to copy other fields
-    const platform_group_advanced_settings = await knex(
-      "advanced_challenge_settings"
-    )
-      .select("*")
-      .where("platform_group_uuid", platform_group.uuid)
-      .first();
 
     const platformRes = await knex("platform_accounts")
       .insert({
