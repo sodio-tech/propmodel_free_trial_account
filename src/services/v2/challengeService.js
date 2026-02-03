@@ -301,7 +301,7 @@ async function create_platform_account(
         max_daily_drawdown,
         account_stage: platform_group.account_stage,
         account_type: platform_group.account_type,
-        action_type: "challenge",
+        action_type: award_type === "FREE_TRAIL" ? "free_trial_challenge" : "challenge",
         award_type: award_type
       })
       .returning("*")
