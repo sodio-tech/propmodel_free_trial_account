@@ -100,6 +100,26 @@ const createFreeTrailAccount = async (requestBody, tokenData) => {
       throw new Error("Free trial settings not configured");
     }
 
+    // Check total free trial accounts limit (100,000)
+    const totalFreeTrailAccounts = await knex("platform_accounts")
+      .where("award_type", "FREE_TRAIL")
+      .count("* as count")
+      .first();
+
+    if (totalFreeTrailAccounts && totalFreeTrailAccounts.count >= 100000) {
+      throw new Error("Free trial accounts limit reached. Maximum 100,000 accounts allowed.");
+    }
+
+    // Check if user already has a free trial account
+    const existingUserFreeTrail = await knex("platform_accounts")
+      .where("user_uuid", loggedInUserUuid)
+      .where("award_type", "FREE_TRAIL")
+      .first();
+
+    if (existingUserFreeTrail) {
+      throw new Error("You already have a free trial account. Only one free trial account per user is allowed.");
+    }
+
     const platformGroupUuid = freeTrialSettings.platform_group_uuid;
     const existingGroup = await knex("platform_groups")
       .where("uuid", platformGroupUuid)
