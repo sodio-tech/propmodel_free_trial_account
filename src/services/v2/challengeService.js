@@ -112,13 +112,18 @@ const createFreeTrialAccount = async (requestBody, tokenData) => {
     }
 
     // Check if user already has a free trial account
-    const existingUserFreeTrial = await knex("platform_accounts")
-      .where("user_uuid", loggedInUserUuid)
-      .where("award_type", "FREE_TRIAL")
-      .first();
+    // Skip this check if ALLOW_MULTIPLE_FREE_TRIALS is set to 'true' (for testing)
+    const allowMultipleTrials = process.env.ALLOW_MULTIPLE_FREE_TRIALS === "true";
 
-    if (existingUserFreeTrial) {
-      throw new Error("You already have a free trial account. Only one free trial account per user is allowed.");
+    if (!allowMultipleTrials) {
+      const existingUserFreeTrial = await knex("platform_accounts")
+        .where("user_uuid", loggedInUserUuid)
+        .where("award_type", "FREE_TRIAL")
+        .first();
+
+      if (existingUserFreeTrial) {
+        throw new Error("You already have a free trial account. Only one free trial account per user is allowed.");
+      }
     }
 
     const platformGroupUuid = freeTrialSettings.platform_group_uuid;
