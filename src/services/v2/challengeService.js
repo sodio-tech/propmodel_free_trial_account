@@ -382,10 +382,13 @@ async function create_platform_account(
       created_by: loggedInUserUuid,
     });
 
-    // Schedule free trial expiration job (30 days) only for FREE_TRIAL accounts
+    // Schedule free trial expiration job only for FREE_TRIAL accounts
+    // Use FREE_TRIAL_EXPIRY_MINUTES from env (default: 1 minute for testing, 43200 for 30 days)
     if (award_type === "FREE_TRIAL") {
       try {
-        await scheduleFreeTrialExpiration(platformRes.uuid, 30);
+        const trialMinutes = parseInt(process.env.FREE_TRIAL_EXPIRY_MINUTES || "1");
+        const trialDays = trialMinutes / (24 * 60); // Convert minutes to days
+        await scheduleFreeTrialExpiration(platformRes.uuid, trialDays);
       } catch (queueError) {
         console.error("Error scheduling free trial expiration job:", queueError);
         // Don't throw - account creation succeeded, just log the queue error
