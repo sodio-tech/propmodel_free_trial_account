@@ -111,19 +111,20 @@ const createFreeTrialAccount = async (requestBody, tokenData) => {
       throw new Error("Free trial accounts limit reached. Maximum 100,000 accounts allowed.");
     }
 
-    // Check if user already has a free trial account
-    // Skip this check if ALLOW_MULTIPLE_FREE_TRIALS is set to 'true' (for testing)
-    const allowMultipleTrials = process.env.ALLOW_MULTIPLE_FREE_TRIALS === "true";
+    // Check user's free trial account count against max_free_trial_per_user from settings
+    const maxFreeTrialPerUser = freeTrialSettings.max_free_trial_per_user || 1;
+    const userFreeTrialCount = await knex("platform_accounts")
+      .where("user_uuid", loggedInUserUuid)
+      .where("award_type", "FREE_TRIAL")
+      .count("* as count")
+      .first();
 
-    if (!allowMultipleTrials) {
-      const existingUserFreeTrial = await knex("platform_accounts")
-        .where("user_uuid", loggedInUserUuid)
-        .where("award_type", "FREE_TRIAL")
-        .first();
+    const currentCount = parseInt(userFreeTrialCount?.count || 0);
 
-      if (existingUserFreeTrial) {
-        throw new Error("You already have a free trial account. Only one free trial account per user is allowed.");
-      }
+    if (currentCount >= maxFreeTrialPerUser) {
+      throw new Error(
+        `You have reached the maximum free trial accounts limit (${maxFreeTrialPerUser}). Please contact support for assistance.`
+      );
     }
 
     const platformGroupUuid = freeTrialSettings.platform_group_uuid;
