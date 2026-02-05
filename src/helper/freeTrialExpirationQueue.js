@@ -9,6 +9,7 @@ import Queue from "bull";
 import { knex, initializeDatabase } from "propmodel_api_core";
 import { captureException } from "propmodel_sentry_core";
 import dotenv from "dotenv";
+import mt5Service from "../services/v2/mt5Service.js";
 
 // Load environment variables
 dotenv.config();
@@ -48,43 +49,80 @@ freeTrialExpirationQueue.process(async (job) => {
       return { success: false, message: "Platform account not found" };
     }
 
-    // TODO: Add your business logic here to check if free trial should expire
-    // Example conditions to check:
-    // - Has the user reached profit targets?
-    // - Has the user violated any trading rules?
-    // - Should the account be extended/converted to paid?
-    // - Should the account be disabled?
-
-    /*
-    const shouldPassCondition = await checkFreeTrialConditions(platformAccount);
-
-    if (shouldPassCondition) {
-      // Example: Convert to paid account or extend trial
-      await knex("platform_accounts")
-        .where("uuid", platformAccountUuid)
-        .update({
-          status: 1, // or other status
-          // other updates...
-        });
-    } else {
-      // Example: Disable the account
-      await knex("platform_accounts")
-        .where("uuid", platformAccountUuid)
-        .update({
-          status: 0, // disabled
-          // other updates...
-        });
+    // Check if this is actually a free trial account
+    if (platformAccount.award_type !== "FREE_TRIAL") {
+      console.log(`Account is not a free trial: ${platformAccountUuid}`);
+      return { success: false, message: "Not a free trial account" };
     }
-    */
 
-    // For now, just log that the expiration check was processed
+    // Check if account is already disabled/expired
+    if (platformAccount.status === 0) {
+      console.log(`Free trial account already disabled: ${platformAccountUuid}`);
+      return { success: true, message: "Account already disabled" };
+    }
+
+    // TODO: Add business logic here to check conditions for free trial expiration
+    // Example conditions to check:
+    // - Has the user reached profit targets? -> Convert to paid or extend
+    // - Has the user violated trading rules? -> Disable immediately
+    // - Should the account be extended? -> Reschedule queue job
+    // - Default: Disable the account
+
+    // For now, default behavior: Disable the free trial account
+    console.log(`Disabling free trial account: ${platformAccountUuid}`);
+
+    // 1. Disable the MT5 account (close positions and disable)
+    if (platformAccount.platform_login_id) {
+      try {
+        const mt5Response = await mt5Service.closePositionsDisableMultipleAccounts({
+          logins: [platformAccount.platform_login_id],
+        });
+        console.log(
+          `MT5 account disabled: ${platformAccount.platform_login_id}`,
+          mt5Response
+        );
+      } catch (mt5Error) {
+        console.error(
+          `Error disabling MT5 account ${platformAccount.platform_login_id}:`,
+          mt5Error
+        );
+        captureException(mt5Error, {
+          operation: "freeTrialExpirationQueue_disableMT5",
+          extra: {
+            platformAccountUuid,
+            platform_login_id: platformAccount.platform_login_id,
+          },
+        });
+        // Continue with database update even if MT5 disable fails
+      }
+    }
+
+    // 2. Update platform account status in database
+    await knex("platform_accounts")
+      .where("uuid", platformAccountUuid)
+      .update({
+        status: 0, // disabled
+        updated_at: new Date(),
+      });
+
+    // 3. Store activity log for free trial expiration
+    await knex("activity_logs").insert({
+      user_uuid: platformAccount.user_uuid,
+      action: "FREE_TRIAL_EXPIRED",
+      metadata: `Free trial account expired and disabled - ${platformAccount.platform_login_id}`,
+      user_type: "SYSTEM",
+      event_type: "FREE_TRIAL",
+      created_by: "SYSTEM",
+      created_at: new Date(),
+    });
+
     console.log(
-      `Free trial expiration check completed for: ${platformAccountUuid}`
+      `Free trial account disabled successfully: ${platformAccountUuid}`
     );
 
     return {
       success: true,
-      message: "Free trial expiration check completed",
+      message: "Free trial account disabled",
     };
   } catch (error) {
     console.error("Error processing free trial expiration:", error);
