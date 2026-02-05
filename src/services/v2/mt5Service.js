@@ -123,11 +123,37 @@ const changeUserGroup = async (reqParams = {}) => {
   }
 };
 
+/**
+ * Close positions and disable multiple MT5 accounts
+ * @param {Object} reqParams - The request parameters object containing logins array
+ * @returns {Promise<Object>} The response from the API
+ * @throws {Error} If the API request fails
+ */
+const closePositionsDisableMultipleAccounts = async (reqParams = {}) => {
+  try {
+    const { logins } = reqParams;
+
+    const response = await apiClient.post(
+      "/account/close_positions_disable_multiple_accounts",
+      { logins }
+    );
+    return handleApiResponse(response);
+  } catch (error) {
+    console.error("Error in closePositionsDisableMultipleAccounts:", error);
+    captureException(error, {
+      operation: "service_closePositionsDisableMultipleAccounts",
+      extra: { reqParams },
+    });
+    return handleApiError(error);
+  }
+};
+
 export default {
   createMt5Account,
   resetAccount,
   addBalance,
   resetPhase,
   changeUserGroup,
+  closePositionsDisableMultipleAccounts,
 };
 
