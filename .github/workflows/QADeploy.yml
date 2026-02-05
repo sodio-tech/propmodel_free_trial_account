@@ -23,6 +23,7 @@ jobs:
             cd ${{ secrets.DEV_PATH }}
             export NVM_DIR="$HOME/.nvm"
             [ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"  # This loads nvm
+            git checkout qa
             git stash && git pull
             pnpm i
             pm2 restart propmodel_free_trial_account || pm2 start ecosystem.config.cjs
