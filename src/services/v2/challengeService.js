@@ -69,21 +69,21 @@ const emailService = async (url, data, method = "POST") => {
 };
 
 /**
- * Free trail - Creates a free trail account for the authenticated user
+ * Free trial - Creates a free trial account for the authenticated user
  * using a free trial code. This uses the SAME logic as awardChallenge,
- * only the input payload is different (free_trail_code instead of award parameters)
+ * only the input payload is different (free_trial_code instead of award parameters)
  *
- * @returns {Object} - Free trail account created
+ * @returns {Object} - Free trial account created
  */
-const createFreeTrailAccount = async (requestBody, tokenData) => {
+const createFreeTrialAccount = async (requestBody, tokenData) => {
   const loggedInUserUuid = tokenData.uuid;
 
   try {
-    const { free_trail_code } = requestBody;
+    const { free_trial_code } = requestBody;
 
     // NEW: Validate free trial code exists and is active (status = 1)
     const freeTrialCodeRecord = await knex("free_trial_codes")
-      .where("code", free_trail_code)
+      .where("code", free_trial_code)
       .where("status", 1)
       .first();
 
@@ -101,22 +101,22 @@ const createFreeTrailAccount = async (requestBody, tokenData) => {
     }
 
     // Check total free trial accounts limit (100,000)
-    const totalFreeTrailAccounts = await knex("platform_accounts")
-      .where("award_type", "FREE_TRAIL")
+    const totalFreeTrialAccounts = await knex("platform_accounts")
+      .where("award_type", "FREE_TRIAL")
       .count("* as count")
       .first();
 
-    if (totalFreeTrailAccounts && totalFreeTrailAccounts.count >= 100000) {
+    if (totalFreeTrialAccounts && totalFreeTrialAccounts.count >= 100000) {
       throw new Error("Free trial accounts limit reached. Maximum 100,000 accounts allowed.");
     }
 
     // Check if user already has a free trial account
-    const existingUserFreeTrail = await knex("platform_accounts")
+    const existingUserFreeTrial = await knex("platform_accounts")
       .where("user_uuid", loggedInUserUuid)
-      .where("award_type", "FREE_TRAIL")
+      .where("award_type", "FREE_TRIAL")
       .first();
 
-    if (existingUserFreeTrail) {
+    if (existingUserFreeTrial) {
       throw new Error("You already have a free trial account. Only one free trial account per user is allowed.");
     }
 
@@ -139,20 +139,20 @@ const createFreeTrailAccount = async (requestBody, tokenData) => {
     }
 
     // Use the same create_platform_account function as original award logic
-    // Pass empty arrays for optional params since free trail doesn't use them
+    // Pass empty arrays for optional params since free trial doesn't use them
     const result = await create_platform_account(
       existingGroup,
       user,
       loggedInUserUuid,
       [], // subtags_uuids
-      "FREE_TRAIL", // award_type
+      "FREE_TRIAL", // award_type
       null, // discountCodeRecord
       null // payment_transaction_id
     );
 
     // NEW: Mark the free trial code as used
     await knex("free_trial_codes")
-      .where("code", free_trail_code)
+      .where("code", free_trial_code)
       .update({
         status: 0,
         used_by_user_uuid: loggedInUserUuid,
@@ -167,9 +167,9 @@ const createFreeTrailAccount = async (requestBody, tokenData) => {
       initial_balance: result?.initial_balance,
     };
   } catch (error) {
-    console.error("Error creating free trail:", error);
+    console.error("Error creating free trial:", error);
     captureException(error, {
-      operation: "service_freeTrail_v2",
+      operation: "service_freeTrial_v2",
       user: { id: tokenData?.uuid || tokenData?.id },
       extra: { requestBody },
     });
@@ -301,7 +301,7 @@ async function create_platform_account(
         max_daily_drawdown,
         account_stage: platform_group.account_stage,
         account_type: platform_group.account_type,
-        action_type: award_type === "FREE_TRAIL" ? "free_trial_challenge" : "challenge",
+        action_type: award_type === "FREE_TRIAL" ? "free_trial_challenge" : "challenge",
         award_type: award_type
       })
       .returning("*")
@@ -423,5 +423,5 @@ const sendEmailForNewPurchase = async (platformAccount, userData) => {
 }
 
 export default {
-  createFreeTrailAccount,
+  createFreeTrialAccount,
 };

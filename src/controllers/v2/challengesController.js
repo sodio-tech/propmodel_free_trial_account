@@ -7,40 +7,40 @@
 import controllerWrapper from "../../middleware/controllerHandler.js";
 import challengeService from "../../services/v2/challengeService.js";
 import { captureException } from "propmodel_sentry_core";
-import { freeTrailRequest } from "../../requests/v2/awardChallengeRequest.js";
+import { freeTrialRequest } from "../../requests/v2/awardChallengeRequest.js";
 
 /**
- * Free trail
+ * Free trial
  */
-const createFreeTrailAccount = controllerWrapper(async (req, res) => {
+const createFreeTrialAccount = controllerWrapper(async (req, res) => {
   try {
     const requestBody = req.body;
     const tokenData = req.tokenData;
 
-    await freeTrailRequest.validateAsync(requestBody);
+    await freeTrialRequest.validateAsync(requestBody);
 
     // Get result from service
-    const result = await challengeService.createFreeTrailAccount(
+    const result = await challengeService.createFreeTrialAccount(
       requestBody,
       tokenData
     );
 
     if (!result) {
-      return res.error("server_error", "Failed to create free trail account", 500);
+      return res.error("server_error", "Failed to create free trial account", 500);
     }
 
-    return res.success("free_trail_created", result, 200);
+    return res.success("free_trial_created", result, 200);
   } catch (error) {
-    console.error("Error in createFreeTrailAccount:", error);
+    console.error("Error in createFreeTrialAccount:", error);
     captureException(error, {
-      operation: "createFreeTrailAccount",
+      operation: "createFreeTrialAccount",
       user: { id: req.tokenData?.uuid || req.tokenData?.id },
       extra: { requestBody: req.body },
     });
-    return res.error("free_trail_failed", error.message, 400);
+    return res.error("free_trial_failed", error.message, 400);
   }
 });
 
 export default {
-  createFreeTrailAccount,
+  createFreeTrialAccount,
 };
