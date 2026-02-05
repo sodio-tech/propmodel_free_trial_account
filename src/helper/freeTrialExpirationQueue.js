@@ -22,7 +22,6 @@ const freeTrialExpirationQueue = new Queue(
       host: process.env.REDIS_HOST,
       password: process.env.REDIS_PASSWORD,
       db: Number(process.env.REDIS_DB),
-      ttl: process.env.REDIS_CACHE_TTL,
     },
   }
 );
