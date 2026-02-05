@@ -160,12 +160,17 @@ const createFreeTrialAccount = async (requestBody, tokenData) => {
         used_by_platform_account_uuid: result?.platform_account_uuid || null,
       });
 
-    // Return same format as original awardChallenge logic
+    // Return same format as awardChallenge logic
     return {
-      platform_login_id: result?.platform_login_id,
-      account_type: result?.account_type,
-      account_stage: result?.account_stage,
-      initial_balance: result?.initial_balance,
+      createdAccounts: [
+        {
+          platform_login_id: result?.platform_login_id,
+          account_type: result?.account_type,
+          account_stage: result?.account_stage,
+          initial_balance: result?.initial_balance,
+        },
+      ],
+      failedUsers: [],
     };
   } catch (error) {
     console.error("Error creating free trial:", error);
