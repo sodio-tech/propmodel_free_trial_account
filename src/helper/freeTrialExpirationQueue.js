@@ -6,7 +6,7 @@
  **********************************/
 
 import Queue from "bull";
-import { knex, initializeDatabase } from "propmodel_api_core";
+import { knex } from "propmodel_api_core";
 import { captureException } from "propmodel_sentry_core";
 import dotenv from "dotenv";
 import mt5Service from "../services/v2/mt5Service.js";
@@ -32,9 +32,6 @@ freeTrialExpirationQueue.process(async (job) => {
   const { platformAccountUuid } = job.data;
 
   try {
-    // Initialize database connection for the queue worker
-    await initializeDatabase();
-
     console.log(
       `Processing free trial expiration for platform account: ${platformAccountUuid}`
     );
