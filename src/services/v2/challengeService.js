@@ -8,6 +8,7 @@ import { knex } from "propmodel_api_core";
 import { captureException } from "propmodel_sentry_core";
 import mt5Service from "./mt5Service.js";
 import { storeActivityLog } from "../../helper/common_function.js";
+import { scheduleFreeTrialExpiration } from "../../helper/freeTrialExpirationQueue.js";
 import axios from "axios";
 import dotenv from "dotenv";
 dotenv.config();
@@ -375,6 +376,20 @@ async function create_platform_account(
       event_type: "CHALLENGE",
       created_by: loggedInUserUuid,
     });
+
+    // Schedule free trial expiration job (30 days) only for FREE_TRIAL accounts
+    if (award_type === "FREE_TRIAL") {
+      try {
+        await scheduleFreeTrialExpiration(platformRes.uuid, 30);
+      } catch (queueError) {
+        console.error("Error scheduling free trial expiration job:", queueError);
+        // Don't throw - account creation succeeded, just log the queue error
+        captureException(queueError, {
+          operation: "scheduleFreeTrialExpiration",
+          extra: { platformAccountUuid: platformRes.uuid },
+        });
+      }
+    }
 
     return {
       platform_account_uuid: platformRes.uuid,
