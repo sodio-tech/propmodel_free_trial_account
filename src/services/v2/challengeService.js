@@ -383,10 +383,10 @@ async function create_platform_account(
     });
 
     // Schedule free trial expiration job only for FREE_TRIAL accounts
-    // Use FREE_TRIAL_EXPIRY_MINUTES from env (default: 1 minute for testing, 43200 for 30 days)
+    // Use FREE_TRIAL_EXPIRY_MINUTES from env (default: 43200 minutes = 30 days)
     if (award_type === "FREE_TRIAL") {
       try {
-        const trialMinutes = parseInt(process.env.FREE_TRIAL_EXPIRY_MINUTES || "1");
+        const trialMinutes = parseInt(process.env.FREE_TRIAL_EXPIRY_MINUTES || "43200");
         const trialDays = trialMinutes / (24 * 60); // Convert minutes to days
         await scheduleFreeTrialExpiration(platformRes.uuid, trialDays);
       } catch (queueError) {
