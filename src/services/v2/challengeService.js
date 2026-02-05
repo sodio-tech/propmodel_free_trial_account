@@ -101,6 +101,11 @@ const createFreeTrialAccount = async (requestBody, tokenData) => {
       throw new Error("Free trial settings not configured");
     }
 
+    // Check if free trials are enabled
+    if (!freeTrialSettings.enable_free_trials) {
+      throw new Error("Free trials are currently disabled. Please contact support for assistance.");
+    }
+
     // Check total free trial accounts limit (100,000)
     const totalFreeTrialAccounts = await knex("platform_accounts")
       .where("award_type", "FREE_TRIAL")
