@@ -178,6 +178,17 @@ const createFreeTrialAccount = async (requestBody, tokenData) => {
         used_by_platform_account_uuid: result?.platform_account_uuid || null,
       });
 
+    // Store activity log for free trial account creation
+    await knex("activity_logs").insert({
+      user_uuid: user.uuid,
+      action: "FREE_TRIAL_CREATED",
+      metadata: `Free trial account created - ${result?.platform_login_id || 'N/A'}`,
+      user_type: "USER",
+      event_type: "FREE_TRIAL",
+      created_by: loggedInUserUuid,
+      created_at: new Date(),
+    });
+
     // Return same format as awardChallenge logic
     return {
       createdAccounts: [
