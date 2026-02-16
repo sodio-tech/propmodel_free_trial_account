@@ -10,6 +10,7 @@ import { knex } from "propmodel_api_core";
 import { captureException } from "propmodel_sentry_core";
 import dotenv from "dotenv";
 import mt5Service from "../services/v2/mt5Service.js";
+import { sendWebhookEvent } from "./webhookHelper.js";
 
 // Load environment variables
 dotenv.config();
@@ -52,7 +53,7 @@ freeTrialExpirationQueue.process(async (job) => {
       return { success: false, message: "Not a free trial account" };
     }
 
-    // Check if account is already disabled/expired
+    // Check if account is already disabled
     if (platformAccount.status === 0) {
       console.log(`Free trial account already disabled: ${platformAccountUuid}`);
       return { success: true, message: "Account already disabled" };
@@ -94,13 +95,19 @@ freeTrialExpirationQueue.process(async (job) => {
       }
     }
 
-    // 2. Update platform account status in database
-    await knex("platform_accounts")
-      .where("uuid", platformAccountUuid)
-      .update({
-        status: 0, // disabled
-        updated_at: new Date(),
-      });
+    // 2. Send webhook event for free trial expiration
+    // The webhook handler will take care of disabling the account
+    const webhookSent = await sendWebhookEvent(
+      "challengeFailed",
+      platformAccount.platform_login_id,
+      false,
+      "Free trial expired"
+    );
+
+    if (!webhookSent) {
+      console.error(`Failed to send webhook for free trial expiration: ${platformAccountUuid}`);
+      // Still log the attempt even if webhook fails
+    }
 
     // 3. Store activity log for free trial expiration
     await knex("activity_logs").insert({
