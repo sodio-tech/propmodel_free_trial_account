@@ -117,19 +117,26 @@ const createFreeTrialAccount = async (requestBody, tokenData) => {
     }
 
     // Check user's free trial account count against max_free_trial_per_user from settings
-    const maxFreeTrialPerUser = freeTrialSettings.max_free_trial_per_user || 1;
-    const userFreeTrialCount = await knex("platform_accounts")
-      .where("user_uuid", loggedInUserUuid)
-      .where("award_type", "FREE_TRIAL")
-      .count("* as count")
-      .first();
+    // Skip check if ALLOW_MULTIPLE_FREE_TRIALS=true (for testing)
+    const allowMultipleFreeTrials = process.env.ALLOW_MULTIPLE_FREE_TRIALS === "true";
+    const maxFreeTrialPerUser = allowMultipleFreeTrials 
+      ? 999999 
+      : (freeTrialSettings.max_free_trial_per_user || 1);
+    
+    if (!allowMultipleFreeTrials) {
+      const userFreeTrialCount = await knex("platform_accounts")
+        .where("user_uuid", loggedInUserUuid)
+        .where("award_type", "FREE_TRIAL")
+        .count("* as count")
+        .first();
 
-    const currentCount = parseInt(userFreeTrialCount?.count || 0);
+      const currentCount = parseInt(userFreeTrialCount?.count || 0);
 
-    if (currentCount >= maxFreeTrialPerUser) {
-      throw new Error(
-        `You have reached the maximum free trial accounts limit (${maxFreeTrialPerUser}). Please contact support for assistance.`
-      );
+      if (currentCount >= maxFreeTrialPerUser) {
+        throw new Error(
+          `You have reached the maximum free trial accounts limit (${maxFreeTrialPerUser}). Please contact support for assistance.`
+        );
+      }
     }
 
     const platformGroupUuid = freeTrialSettings.platform_group_uuid;
