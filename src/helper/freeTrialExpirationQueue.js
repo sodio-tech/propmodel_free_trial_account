@@ -97,16 +97,19 @@ freeTrialExpirationQueue.process(async (job) => {
 
     // 2. Send webhook event for free trial expiration
     // The webhook handler will take care of disabling the account
-    const webhookSent = await sendWebhookEvent(
-      "challengeFailed",
-      platformAccount.platform_login_id,
-      false,
-      "Free trial expired"
-    );
+    try {
+      const webhookSent = await sendWebhookEvent(
+        "challengeFailed",
+        platformAccount.platform_login_id,
+        false,
+        "Free trial expired"
+      );
 
-    if (!webhookSent) {
-      console.error(`Failed to send webhook for free trial expiration: ${platformAccountUuid}`);
-      // Still log the attempt even if webhook fails
+      if (!webhookSent) {
+        console.error(`Failed to send webhook for free trial expiration: ${platformAccountUuid}`);
+      }
+    } catch (webhookError) {
+      console.error(`Webhook error (non-blocking): ${webhookError.message}`);
     }
 
     // 3. Store activity log for free trial expiration
@@ -116,7 +119,7 @@ freeTrialExpirationQueue.process(async (job) => {
       metadata: `Free trial account expired and disabled - ${platformAccount.platform_login_id}`,
       user_type: "SYSTEM",
       event_type: "FREE_TRIAL",
-      created_by: "SYSTEM",
+      created_by: platformAccount.user_uuid,
       created_at: new Date(),
     });
 
