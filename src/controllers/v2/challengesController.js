@@ -41,6 +41,26 @@ const createFreeTrialAccount = controllerWrapper(async (req, res) => {
   }
 });
 
+const getFreeTrialStats = controllerWrapper(async (req, res) => {
+  try {
+    const result = await challengeService.getFreeTrialStats();
+
+    if (!result) {
+      return res.error("server_error", "Failed to get free trial stats", 500);
+    }
+
+    return res.success("free_trial_stats_fetched", result, 200);
+  } catch (error) {
+    console.error("Error in getFreeTrialStats:", error);
+    captureException(error, {
+      operation: "getFreeTrialStats",
+      user: { id: req.tokenData?.uuid || req.tokenData?.id },
+    });
+    return res.error("free_trial_stats_failed", error.message, 400);
+  }
+});
+
 export default {
   createFreeTrialAccount,
+  getFreeTrialStats,
 };

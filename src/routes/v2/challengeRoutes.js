@@ -20,5 +20,11 @@ router.post(
   challengeController.createFreeTrialAccount
 );
 
+router.get(
+  "/admin/challenges/free-trial/stats",
+  tokenValidation,
+  challengeController.getFreeTrialStats
+);
+
 export default router;
 

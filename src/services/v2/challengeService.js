@@ -464,16 +464,167 @@ const sendEmailForNewPurchase = async (platformAccount, userData) => {
        }
    };
 
-  try {
-    await emailService(apiUrl, emailData, "POST");
+ try {
+   await emailService(apiUrl, emailData, "POST");
 
-  } catch (error) {
-    console.log(error);
-    // Continue execution even if email fails
-    captureException(error);
-  }
+ } catch (error) {
+   console.log(error);
+   // Continue execution even if email fails
+   captureException(error);
+ }
 }
+
+const getFreeTrialStats = async () => {
+  try {
+    const [
+      freeTrialCodesResult,
+      totalPayoutResult,
+      totalAccountsResult,
+      liveAccountsResult,
+      breachedAccountsResult,
+      reachingPayoutResult,
+      purchasedAfterFreeTrialResult,
+      profitVsLossResult,
+    ] = await Promise.all([
+      // 1. Number of free trial codes (status = 1 means active)
+      knex("free_trial_codes")
+        .where("status", 1)
+        .count("* as count")
+        .first(),
+
+      // 2. Total payout from free trial accounts (count and amount)
+      knex("payout_requests as pr")
+        .join("platform_accounts as pa", "pr.platform_account_uuid", "pa.uuid")
+        .where("pa.award_type", "FREE_TRIAL")
+        .where("pa.action_type", "free_trial_challenge")
+        .where("pr.status", 1) // Only approved payouts
+        .select(
+          knex.raw("COUNT(*) as payout_count"),
+          knex.raw("COALESCE(SUM(pr.amount), 0) as total_payout")
+        )
+        .first(),
+
+      // 3. Number of total free trial accounts
+      knex("platform_accounts")
+        .where("award_type", "FREE_TRIAL")
+        .where("action_type", "free_trial_challenge")
+        .count("* as count")
+        .first(),
+
+      // 4. Number of live accounts (status = 1 means live)
+      knex("platform_accounts")
+        .where("award_type", "FREE_TRIAL")
+        .where("action_type", "free_trial_challenge")
+        .where("status", 1)
+        .count("* as count")
+        .first(),
+
+      // 5. Breached accounts (status = 0 and funded_status = 0)
+      knex("platform_accounts")
+        .where("award_type", "FREE_TRIAL")
+        .where("action_type", "free_trial_challenge")
+        .where("status", 0)
+        .where("funded_status", 0)
+        .count("* as count")
+        .first(),
+
+      // 6. Number of accounts reaching payout (distinct accounts with approved payout)
+      knex("payout_requests as pr")
+        .join("platform_accounts as pa", "pr.platform_account_uuid", "pa.uuid")
+        .where("pa.award_type", "FREE_TRIAL")
+        .where("pa.action_type", "free_trial_challenge")
+        .where("pr.status", 1)
+        .select(knex.raw("COUNT(DISTINCT pa.uuid) as count"))
+        .first(),
+
+      // 7. Number of users who purchased after free trial
+      // Users who have FREE_TRIAL accounts AND have made a purchase (non-AWARD payment)
+      knex("users as u")
+        .whereExists(
+          knex("platform_accounts as pa")
+            .whereRaw("pa.user_uuid = u.uuid")
+            .where("pa.award_type", "FREE_TRIAL")
+            .where("pa.action_type", "free_trial_challenge")
+        )
+        .whereExists(
+          knex("purchases as p")
+            .whereRaw("p.user_uuid = u.uuid")
+            .where("p.payment_status", 1)
+            .whereNot("p.payment_method", "AWARD")
+        )
+        .count("* as count")
+        .first(),
+
+      // 8. Profit vs Loss for live free trial accounts
+      knex("platform_accounts as pa")
+        .join("account_stats as ast", "ast.platform_account_uuid", "pa.uuid")
+        .where("pa.award_type", "FREE_TRIAL")
+        .where("pa.action_type", "free_trial_challenge")
+        .where("pa.status", 1) // Only live accounts
+        .where("ast.status", "active") // Only active account stats
+        .where("ast.trading_days_count", ">", 0) // Must have trading days
+        .select(
+          knex.raw(`
+            sum(case when (ast.current_equity - pa.initial_balance) > 0 then (ast.current_equity - pa.initial_balance) else 0 end) as total_profit
+          `),
+          knex.raw(`
+            sum(case when (ast.current_equity - pa.initial_balance) < 0 then (ast.current_equity - pa.initial_balance) else 0 end) as total_loss
+          `),
+          knex.raw("sum(ast.current_equity - pa.initial_balance) as net_profit")
+        )
+        .first(),
+    ]);
+
+    const numberOfFreeTrialCodes = parseInt(freeTrialCodesResult?.count || 0);
+    const totalPayoutFromFreeTrial = parseFloat(totalPayoutResult?.total_payout || 0);
+    const totalPayoutCount = parseInt(totalPayoutResult?.payout_count || 0);
+    const numberOfFreeTrialAccounts = parseInt(totalAccountsResult?.count || 0);
+    const numberOfLiveAccounts = parseInt(liveAccountsResult?.count || 0);
+    const breachedAccountOfFreeTrial = parseInt(breachedAccountsResult?.count || 0);
+    const numberOfReachingPayout = parseInt(reachingPayoutResult?.count || 0);
+    const numberOfUserWhoPurchasedAfterFreeTrial = parseInt(purchasedAfterFreeTrialResult?.count || 0);
+
+    // Calculate reaching payout percentage
+    const reachingPayoutPercentage = numberOfFreeTrialAccounts > 0
+      ? parseFloat(((numberOfReachingPayout / numberOfFreeTrialAccounts) * 100).toFixed(2))
+      : 0;
+
+    // Calculate profit vs loss
+    const totalProfit = parseFloat(profitVsLossResult?.total_profit || 0);
+    const totalLoss = Math.abs(parseFloat(profitVsLossResult?.total_loss || 0));
+    const netProfit = parseFloat(profitVsLossResult?.net_profit || 0);
+    const totalAbsolute = totalProfit + totalLoss;
+
+    return {
+      number_of_free_trial_codes: numberOfFreeTrialCodes,
+      total_payout_from_free_trial: totalPayoutFromFreeTrial,
+      total_payout_count: totalPayoutCount,
+      breached_account_of_free_trial: breachedAccountOfFreeTrial,
+      number_of_user_who_purchased_after_free_trial: numberOfUserWhoPurchasedAfterFreeTrial,
+      free_trial_accounts: {
+        total: numberOfFreeTrialAccounts,
+        live: numberOfLiveAccounts,
+        reaching_payout: numberOfReachingPayout,
+        reaching_payout_percentage: reachingPayoutPercentage,
+      },
+      live_accounts_profit_loss: {
+        total_profit: totalProfit,
+        total_loss: -totalLoss,
+        net_profit: netProfit,
+        profit_percentage: totalAbsolute ? parseFloat(((totalProfit / totalAbsolute) * 100).toFixed(2)) : 0,
+        loss_percentage: totalAbsolute ? parseFloat(((totalLoss / totalAbsolute) * 100).toFixed(2)) : 0,
+      },
+    };
+  } catch (error) {
+    console.error("Error fetching free trial stats:", error);
+    captureException(error, {
+      operation: "service_getFreeTrialStats",
+    });
+    throw new Error("Failed to fetch free trial stats");
+  }
+};
 
 export default {
   createFreeTrialAccount,
+  getFreeTrialStats,
 };
