@@ -21,7 +21,7 @@ router.post(
 );
 
 router.get(
-  "/admin/challenges/free-trial/stats",
+  "/admin/challenges/free-trial/stats/testing",
   tokenValidation,
   challengeController.getFreeTrialStats
 );
