@@ -9,26 +9,7 @@ import challengeService from "../../services/v2/challengeService.js";
 import { captureException } from "propmodel_sentry_core";
 import { freeTrialRequest } from "../../requests/v2/awardChallengeRequest.js";
 import { knex } from "propmodel_api_core";
-import crypto from "crypto";
-
-const IV_LENGTH = 12;
-
-const encryptLogin = (login, encryptionKeyBase64) => {
-  try {
-    const key = Buffer.from(encryptionKeyBase64, "base64");
-    const iv = crypto.randomBytes(IV_LENGTH);
-    const cipher = crypto.createCipheriv("aes-256-gcm", key, iv);
-    const encrypted = Buffer.concat([
-      cipher.update(String(login), "utf8"),
-      cipher.final(),
-    ]);
-    const tag = cipher.getAuthTag();
-    return Buffer.concat([iv, tag, encrypted]).toString("base64");
-  } catch (error) {
-    console.error("Encryption error:", error);
-    return null;
-  }
-};
+import { encryptLogin } from "../../helper/webhookHelper.js";
 
 /**
  * Free trial
@@ -108,13 +89,6 @@ const updateReferralNinjaMasteryProgress = controllerWrapper(async (req, res) =>
   }
 });
 
-export default {
-  createFreeTrialAccount,
-  getFreeTrialStats,
-  updateReferralNinjaMasteryProgress,
-  generateWebhookSignature,
-};
-
 const generateWebhookSignature = controllerWrapper(async (req, res) => {
   try {
     const { login_id, webhook_encryption_key } = req.body;
@@ -144,3 +118,10 @@ const generateWebhookSignature = controllerWrapper(async (req, res) => {
     return res.error("signature_generation_failed", error.message, 400);
   }
 });
+
+export default {
+  createFreeTrialAccount,
+  getFreeTrialStats,
+  updateReferralNinjaMasteryProgress,
+  generateWebhookSignature,
+};

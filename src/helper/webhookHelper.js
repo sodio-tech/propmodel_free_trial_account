@@ -71,4 +71,4 @@ const sendWebhookEvent = async (eventName, login, isFunded, reason) => {
   }
 };
 
-export { sendWebhookEvent };
+export { sendWebhookEvent, encryptLogin };
