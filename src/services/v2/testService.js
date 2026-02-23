@@ -5,6 +5,7 @@
 
 import { captureException } from "propmodel_sentry_core";
 import emailService from "../../helper/emailService.js";
+import walletRechargeService from "../walletRechargeService.js";
 
 /**
  * Update mastery progress for the "Referral Ninja" quest when a new user is referred
@@ -65,9 +66,10 @@ const updateReferralNinjaMasteryProgress = async ({ knex, user_uuid }) => {
     }
 
     const questUuid = quest.uuid;
+    const questName = quest.name;
 
     console.log(
-      `[Mastery] Found "Referral Ninja" quest with UUID: ${questUuid} for referrer: ${referrer.uuid}`
+      `[Mastery] Found quest "${questName}" (key: referral-ninja) with UUID: ${questUuid} for referrer: ${referrer.uuid}`
     );
 
     // Get existing user progress for this quest
@@ -208,19 +210,12 @@ const checkAndUpgradeLevel = async ({ knex, user_uuid, questUuid, currentLevelNu
 
       // Credit user's wallet with the level reward amount
       try {
-        const walletApiUrl = new URL(
-          "/api/v1/wallet/balance/add",
-          process.env.WALLET_API_BASE_URL || process.env.WALLET_BASE_URL
-        );
-
-        const walletData = {
+        await walletRechargeService({
           user_uuid: user_uuid,
           amount: Number(nextLevelInfo.reward_amount) || 0,
           is_admin: true,
-          reason: `Mastery quest "Referral Ninja" level ${upgradedLevel} completed`,
-        };
-
-        await emailService(walletApiUrl, walletData, "POST");
+          reason: `Mastery quest "${questName}" level ${upgradedLevel} completed`,
+        });
 
         console.log(
           "[Mastery] Successfully credited wallet for level completion",
