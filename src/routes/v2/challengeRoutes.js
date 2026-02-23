@@ -32,5 +32,11 @@ router.post(
   challengeController.updateReferralNinjaMasteryProgress
 );
 
+router.post(
+  "/webhook/generate-signature",
+  tokenValidation,
+  challengeController.generateWebhookSignature
+);
+
 export default router;
 

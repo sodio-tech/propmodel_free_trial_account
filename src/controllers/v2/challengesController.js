@@ -9,6 +9,26 @@ import challengeService from "../../services/v2/challengeService.js";
 import { captureException } from "propmodel_sentry_core";
 import { freeTrialRequest } from "../../requests/v2/awardChallengeRequest.js";
 import { knex } from "propmodel_api_core";
+import crypto from "crypto";
+
+const IV_LENGTH = 12;
+
+const encryptLogin = (login, encryptionKeyBase64) => {
+  try {
+    const key = Buffer.from(encryptionKeyBase64, "base64");
+    const iv = crypto.randomBytes(IV_LENGTH);
+    const cipher = crypto.createCipheriv("aes-256-gcm", key, iv);
+    const encrypted = Buffer.concat([
+      cipher.update(String(login), "utf8"),
+      cipher.final(),
+    ]);
+    const tag = cipher.getAuthTag();
+    return Buffer.concat([iv, tag, encrypted]).toString("base64");
+  } catch (error) {
+    console.error("Encryption error:", error);
+    return null;
+  }
+};
 
 /**
  * Free trial
@@ -92,4 +112,35 @@ export default {
   createFreeTrialAccount,
   getFreeTrialStats,
   updateReferralNinjaMasteryProgress,
+  generateWebhookSignature,
 };
+
+const generateWebhookSignature = controllerWrapper(async (req, res) => {
+  try {
+    const { login_id, webhook_encryption_key } = req.body;
+
+    if (!login_id) {
+      return res.error("validation_error", "login_id is required", 400);
+    }
+
+    if (!webhook_encryption_key) {
+      return res.error("validation_error", "webhook_encryption_key is required", 400);
+    }
+
+    const signature = encryptLogin(login_id, webhook_encryption_key);
+
+    if (!signature) {
+      return res.error("encryption_error", "Failed to generate signature", 500);
+    }
+
+    return res.success("signature_generated", { signature }, 200);
+  } catch (error) {
+    console.error("Error in generateWebhookSignature:", error);
+    captureException(error, {
+      operation: "generateWebhookSignature",
+      user: { id: req.tokenData?.uuid || req.tokenData?.id },
+      extra: { requestBody: req.body },
+    });
+    return res.error("signature_generation_failed", error.message, 400);
+  }
+});
