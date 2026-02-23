@@ -38,6 +38,7 @@ const sendWebhookEvent = async (eventName, login, isFunded, reason) => {
     }
 
     const encryptedValue = encryptLogin(login, encryptionKey);
+    
     if (!encryptedValue) {
       console.error("Failed to encrypt login");
       return false;
