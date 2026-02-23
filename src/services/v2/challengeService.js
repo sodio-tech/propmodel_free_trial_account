@@ -9,6 +9,7 @@ import { captureException } from "propmodel_sentry_core";
 import mt5Service from "./mt5Service.js";
 import { storeActivityLog } from "../../helper/common_function.js";
 import { scheduleFreeTrialExpiration } from "../../helper/freeTrialExpirationQueue.js";
+import walletRechargeService from "../walletRechargeService.js";
 import axios from "axios";
 import dotenv from "dotenv";
 dotenv.config();
@@ -624,7 +625,207 @@ const getFreeTrialStats = async () => {
   }
 };
 
+/**
+ * Check and upgrade level if requirement is met
+ */
+const checkAndUpgradeLevel = async ({ knex, user_uuid, questUuid, questName, currentLevelNumber, newRequirementValue }) => {
+  try {
+    const nextLevelNumber = currentLevelNumber + 1;
+
+    const nextLevelInfo = await knex("mastery_levels")
+      .where({
+        quest_uuid: questUuid,
+        level_number: nextLevelNumber,
+      })
+      .first();
+
+    let newLevelNumber = currentLevelNumber;
+
+    if (nextLevelInfo && newRequirementValue >= Number(nextLevelInfo.requirement_value)) {
+      const upgradedLevel = nextLevelNumber;
+      newLevelNumber = upgradedLevel > 10 ? 10 : upgradedLevel;
+
+      try {
+        await walletRechargeService({
+          user_uuid: user_uuid,
+          amount: Number(nextLevelInfo.reward_amount) || 0,
+          is_admin: true,
+          reason: `Mastery quest "${questName}" level ${upgradedLevel} completed`,
+        });
+
+        console.log(
+          "[Mastery] Successfully credited wallet for level completion",
+          JSON.stringify({
+            user_uuid: user_uuid,
+            quest_uuid: questUuid,
+            level_number: upgradedLevel,
+            wallet_amount_credited: Number(nextLevelInfo.reward_amount) || 0,
+          })
+        );
+      } catch (walletError) {
+        console.error("[Mastery] Failed to credit wallet for level completion:", walletError);
+        captureException(walletError, {
+          operation: "creditMasteryQuestReward",
+          extra: {
+            user_uuid: user_uuid,
+            quest_uuid: questUuid,
+            level_number: upgradedLevel,
+            reward_amount: Number(nextLevelInfo.reward_amount) || 0,
+          },
+        });
+      }
+    }
+
+    return newLevelNumber;
+  } catch (error) {
+    console.error("[Mastery] Error in checkAndUpgradeLevel:", error);
+    return currentLevelNumber;
+  }
+};
+
+/**
+ * Update mastery progress for the "Referral Ninja" quest when a new user is referred
+ */
+const updateReferralNinjaMasteryProgress = async ({ knex, user_uuid }) => {
+  try {
+    console.log(`[Mastery] Referral Ninja progress update called with user_uuid: ${user_uuid}`);
+
+    const user = await knex("users")
+      .where("uuid", user_uuid)
+      .first();
+
+    if (!user) {
+      throw new Error("User not found");
+    }
+
+    if (!user.ref_by_user_id) {
+      console.log(`[Mastery] User ${user_uuid} was not referred by anyone. Skipping mastery progress update.`);
+      return {
+        success: true,
+        message: "User was not referred by anyone",
+      };
+    }
+
+    const referrer = await knex("users")
+      .where("uuid", user.ref_by_user_id)
+      .first();
+
+    if (!referrer) {
+      console.log(`[Mastery] Referrer ${user.ref_by_user_id} not found. Skipping mastery progress update.`);
+      return {
+        success: true,
+        message: "Referrer not found",
+      };
+    }
+
+    const quest = await knex("mastery_quests")
+      .where("key", "referral-ninja")
+      .first();
+
+    if (!quest) {
+      console.warn(`[Mastery] Quest with key "referral-ninja" not found. Cannot update mastery progress for referrer ${referrer.uuid}`);
+      return {
+        success: false,
+        message: "Referral Ninja quest not found",
+      };
+    }
+
+    const questUuid = quest.uuid;
+    const questName = quest.name;
+
+    console.log(`[Mastery] Found quest "${questName}" (key: referral-ninja) with UUID: ${questUuid} for referrer: ${referrer.uuid}`);
+
+    let userProgress = await knex("mastery_progress")
+      .where({
+        user_uuid: referrer.uuid,
+        quest_uuid: questUuid,
+      })
+      .first();
+
+    let extraData = {};
+    if (userProgress?.extra_data) {
+      try {
+        extraData = typeof userProgress.extra_data === 'string'
+          ? JSON.parse(userProgress.extra_data)
+          : userProgress.extra_data;
+      } catch (e) {
+        console.error('[Mastery] Failed to parse extra_data:', e);
+        extraData = {};
+      }
+    }
+
+    if (!extraData.referral_ninja) {
+      extraData.referral_ninja = {
+        count: 0,
+        referral_uuids: []
+      };
+    }
+
+    if (extraData.referral_ninja.referral_uuids.includes(user_uuid)) {
+      console.log(`[Mastery] User ${user_uuid} was already counted in referrer ${referrer.uuid} Referral Ninja progress. Skipping.`);
+      return {
+        success: true,
+        message: "Referral already counted - no update needed",
+        already_counted: true,
+      };
+    }
+
+    extraData.referral_ninja.referral_uuids.push(user_uuid);
+    const newCount = extraData.referral_ninja.count + 1;
+    extraData.referral_ninja.count = newCount;
+
+    if (!userProgress) {
+      console.log(`[Mastery] Creating new mastery progress entry for referrer ${referrer.uuid}, quest ${questUuid}`);
+      await knex("mastery_progress").insert({
+        user_uuid: referrer.uuid,
+        quest_uuid: questUuid,
+        current_level_number: 0,
+        current_requirement_value: 1,
+        extra_data: JSON.stringify(extraData),
+      });
+      console.log(`[Mastery] Successfully created mastery progress entry for referrer ${referrer.uuid}`);
+
+      await checkAndUpgradeLevel({ knex, user_uuid: referrer.uuid, questUuid, questName, currentLevelNumber: 0, newRequirementValue: 1 });
+    } else {
+      const currentLevelNumber = userProgress.current_level_number || 0;
+
+      const newLevelNumber = await checkAndUpgradeLevel({
+        knex,
+        user_uuid: referrer.uuid,
+        questUuid,
+        questName,
+        currentLevelNumber,
+        newRequirementValue: newCount
+      });
+
+      await knex("mastery_progress")
+        .where({ uuid: userProgress.uuid })
+        .update({
+          current_requirement_value: newCount,
+          current_level_number: newLevelNumber,
+          extra_data: JSON.stringify(extraData),
+          updated_at: knex.fn.now(),
+        });
+      console.log(`[Mastery] Successfully updated mastery progress for referrer ${referrer.uuid}, new count: ${newCount}`);
+    }
+
+    return {
+      success: true,
+      message: "Referral Ninja mastery progress updated successfully",
+    };
+  } catch (error) {
+    console.error(`[Mastery] Error updating Referral Ninja mastery progress for user ${user_uuid}:`, error);
+    captureException(error, {
+      operation: "service_updateReferralNinjaMasteryProgress_v2",
+      user: { id: user_uuid },
+      extra: { user_uuid },
+    });
+    throw error;
+  }
+};
+
 export default {
   createFreeTrialAccount,
   getFreeTrialStats,
+  updateReferralNinjaMasteryProgress,
 };

@@ -9,7 +9,6 @@ import responseHandler from "./middleware/response.js";
 import requiredEnvVars from "./config/envVariable.js";
 
 import challengeRoutesV2 from "./routes/v2/challengeRoutes.js";
-import testRoutesV2 from "./routes/v2/testRoutes.js";
 
 // Load environment variables from .env file
 dotenv.config();
@@ -37,7 +36,6 @@ app.use(responseHandler);
 
 // Load all routes in routes/v2
 app.use("/api/v2", challengeRoutesV2);
-app.use("/api/v2", testRoutesV2);
 
 // Error handling middleware
 // This middleware catches any errors thrown in the application

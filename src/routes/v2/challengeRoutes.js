@@ -26,5 +26,11 @@ router.get(
   challengeController.getFreeTrialStats
 );
 
+router.post(
+  "/mastery/referral-ninja/update-progress",
+  tokenValidation,
+  challengeController.updateReferralNinjaMasteryProgress
+);
+
 export default router;
 
