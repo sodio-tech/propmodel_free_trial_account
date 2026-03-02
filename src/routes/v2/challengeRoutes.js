@@ -27,12 +27,6 @@ router.get(
 );
 
 router.post(
-  "/mastery/referral-ninja/update-progress",
-  tokenValidation,
-  challengeController.updateReferralNinjaMasteryProgress
-);
-
-router.post(
   "/webhook/generate-signature",
   tokenValidation,
   challengeController.generateWebhookSignature
