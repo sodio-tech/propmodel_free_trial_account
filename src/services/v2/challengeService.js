@@ -720,13 +720,14 @@ const updateReferralNinjaMasteryProgress = async ({ knex, user_uuid }) => {
 
     const quest = await knex("mastery_quests")
       .where("key", "referral-ninja")
+      .where("status", 1)
       .first();
 
     if (!quest) {
-      console.warn(`[Mastery] Quest with key "referral-ninja" not found. Cannot update mastery progress for referrer ${referrer.uuid}`);
+      console.warn(`[Mastery] Quest with key "referral-ninja" not found or is disabled. Cannot update mastery progress for referrer ${referrer.uuid}`);
       return {
         success: false,
-        message: "Referral Ninja quest not found",
+        message: "Referral Ninja quest not found or is disabled",
       };
     }
 
