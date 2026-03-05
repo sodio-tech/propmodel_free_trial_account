@@ -367,7 +367,8 @@ async function create_platform_account(
     // Insert advanced_challenge_settings for platform account
     // Use phase_1 values from phase_wise_settings for phase-wise fields
     // Use merged values for non-phase-wise fields, copy other settings from group/defaults
-    await knex("advanced_challenge_settings").insert({
+    // Free trial accounts always have requires_stop_loss and requires_take_profit set to false
+    const advancedSettings = {
       ...other_settings_to_copy,
       account_leverage,
       profit_split,
@@ -377,8 +378,12 @@ async function create_platform_account(
       consistency_score,
       min_trading_days,
       platform_account_uuid: platformRes.uuid,
-      max_trading_days: platform_group?.max_trading_days ?? max_trading_days ?? 30
-    });
+      max_trading_days: platform_group?.max_trading_days ?? max_trading_days ?? 30,
+      requires_stop_loss: false,
+      requires_take_profit: false
+    };
+
+    await knex("advanced_challenge_settings").insert(advancedSettings);
 
 
     //Send email to new user for purchase
