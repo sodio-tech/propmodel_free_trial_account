@@ -302,6 +302,7 @@ async function create_platform_account(
           first_name: user.first_name,
           last_name: user.last_name,
         }),
+        purchase_type: award_type === "FREE_TRIAL" ? "free_trial_challenge" : "challenge",
     };
 
     // Add discount_uuid if discount code is provided
