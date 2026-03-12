@@ -382,7 +382,9 @@ async function create_platform_account(
       max_trading_days: platform_group?.max_trading_days ?? max_trading_days ?? 30,
       requires_stop_loss: false,
       requires_take_profit: false,
-      max_risk_per_symbol: award_type === "FREE_TRIAL" ? 2 : undefined
+      max_risk_per_symbol: award_type === "FREE_TRIAL" 
+        ? (platform_group_advanced_settings?.max_risk_per_symbol ?? 2) 
+        : undefined
     };
 
     await knex("advanced_challenge_settings").insert(advancedSettings);
