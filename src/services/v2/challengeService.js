@@ -11,6 +11,8 @@ import { storeActivityLog } from "../../helper/common_function.js";
 import { scheduleFreeTrialExpiration } from "../../helper/freeTrialExpirationQueue.js";
 import axios from "axios";
 import dotenv from "dotenv";
+import { purchaseHubspotSync, platformAccountHubspotSync } from "./purchaseService.js";
+
 dotenv.config();
 
 /**
@@ -315,10 +317,14 @@ async function create_platform_account(
       purchaseData.payment_transaction_id = payment_transaction_id;
     }
 
-    const purchaseRes = await knex("purchases")
-      .insert(purchaseData)
-      .returning("*")
-      .then((rows) => rows[0]);
+   const purchaseRes = await knex("purchases")
+     .insert(purchaseData)
+     .returning("*")
+     .then((rows) => rows[0]);
+
+   // Attach non-persisted fields needed for HubSpot sync
+   purchaseRes.email = user.email;
+   purchaseRes.hubspot_id = user.hubspot_id;
 
     const platformRes = await knex("platform_accounts")
       .insert({
@@ -410,6 +416,22 @@ async function create_platform_account(
       await knex("platform_account_subtags").insert(subtagAttachments);
     }
 
+     // Sync purchase/account data to HubSpot (non-blocking for DB transaction)
+    purchaseHubspotSync({ purchaseData: purchaseRes })
+     .then(async purchaseHubsportResponse => {
+       if (purchaseHubsportResponse?.data) {
+        purchaseRes.purchase_hubspot_id = purchaseHubsportResponse?.data?.data; // Append hubspot purchase id
+         // Fire-and-forget platform account sync (do not return or await)
+         await platformAccountHubspotSync({
+           platformRes,
+           purchaseData:purchaseRes,
+           platformGroup:platform_group
+         });
+       }
+     })
+     .catch(error => {
+       console.error('Error syncing purchase with HubSpot:', error);
+     });
     // storing the activity logs
     await storeActivityLog({
       user_uuid: user.uuid,
