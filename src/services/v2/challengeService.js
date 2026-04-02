@@ -249,10 +249,13 @@ async function create_platform_account(
     const min_trading_days = phase1Settings.min_trading_days ?? 0;
 
     // Non-phase-wise settings: use advanced_challenge_settings first, then platform_group, then default_challenge_settings
-    const account_leverage = getValueOrDefault(
-      platform_group_advanced_settings?.account_leverage,
-      getValueOrDefault(platform_group.account_leverage, defaultSettings?.account_leverage)
-    );
+    // For FREE_TRIAL accounts, hardcode account_leverage to 20 (1:20)
+    const account_leverage = award_type === "FREE_TRIAL" 
+      ? 20 
+      : getValueOrDefault(
+          platform_group_advanced_settings?.account_leverage,
+          getValueOrDefault(platform_group.account_leverage, defaultSettings?.account_leverage)
+        );
     const profit_split = getValueOrDefault(
       platform_group_advanced_settings?.profit_split,
       getValueOrDefault(platform_group.profit_split, defaultSettings?.profit_split)
