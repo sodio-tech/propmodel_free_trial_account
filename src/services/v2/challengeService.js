@@ -84,16 +84,6 @@ const createFreeTrialAccount = async (requestBody, tokenData) => {
   try {
     const { free_trial_code } = requestBody;
 
-    // NEW: Validate free trial code exists and is active (status = 1)
-    const freeTrialCodeRecord = await knex("free_trial_codes")
-      .where("code", free_trial_code)
-      .where("status", 1)
-      .first();
-
-    if (!freeTrialCodeRecord) {
-      throw new Error("Invalid free trial code");
-    }
-
     // NEW: Get active free trial settings to find platform_group_uuid
     const freeTrialSettings = await knex("free_trial_settings")
       .where("status", 1)
@@ -108,40 +98,34 @@ const createFreeTrialAccount = async (requestBody, tokenData) => {
       throw new Error("Free trials are currently disabled. Please contact support for assistance.");
     }
 
-    // Check total free trial accounts limit (100,000)
+    // NEW: Validate free trial code exists and is active (status = 1)
+    const freeTrialCodes = await knex("free_trial_codes")
+      .where("code", free_trial_code)
+      .where("status", 1)
+      .first();
+
+    if (!freeTrialCodes) {
+      throw new Error("Invalid free trial code");
+    }
+
+    if (freeTrialCodes.used_by_user_uuid) {
+      throw new Error("Free trial code already used.");
+    }
+
     const totalFreeTrialAccounts = await knex("platform_accounts")
+      .where("user_uuid", loggedInUserUuid)
       .where("award_type", "FREE_TRIAL")
       .count("* as count")
       .first();
 
-    if (totalFreeTrialAccounts && totalFreeTrialAccounts.count >= 100000) {
-      throw new Error("Free trial accounts limit reached. Maximum 100,000 accounts allowed.");
-    }
-
-    // Check user's free trial account count against max_free_trial_per_user from settings
-    // Skip check if ALLOW_MULTIPLE_FREE_TRIALS=true (for testing)
-    const allowMultipleFreeTrials = process.env.ALLOW_MULTIPLE_FREE_TRIALS === "true";
-    const maxFreeTrialPerUser = allowMultipleFreeTrials 
-      ? 999999 
-      : (freeTrialSettings.max_free_trial_per_user || 1);
-    
-    if (!allowMultipleFreeTrials) {
-      const userFreeTrialCount = await knex("platform_accounts")
-        .where("user_uuid", loggedInUserUuid)
-        .where("award_type", "FREE_TRIAL")
-        .count("* as count")
-        .first();
-
-      const currentCount = parseInt(userFreeTrialCount?.count || 0);
-
-      if (currentCount >= maxFreeTrialPerUser) {
-        throw new Error(
-          `You have reached the maximum free trial accounts limit (${maxFreeTrialPerUser}). Please contact support for assistance.`
-        );
-      }
+    if (totalFreeTrialAccounts && totalFreeTrialAccounts.count >= freeTrialCodes.max_trial_per_user) {
+      throw new Error(
+        `You have reached the maximum free trial accounts limit (${totalFreeTrialAccounts.count}). Please contact support for assistance.`
+      );
     }
 
     const platformGroupUuid = freeTrialSettings.platform_group_uuid;
+
     const existingGroup = await knex("platform_groups")
       .where("uuid", platformGroupUuid)
       .first();
@@ -250,12 +234,12 @@ async function create_platform_account(
 
     // Non-phase-wise settings: use advanced_challenge_settings first, then platform_group, then default_challenge_settings
     // For FREE_TRIAL accounts, hardcode account_leverage to 20 (1:20)
-    const account_leverage = award_type === "FREE_TRIAL" 
-      ? 20 
+    const account_leverage = award_type === "FREE_TRIAL"
+      ? 20
       : getValueOrDefault(
-          platform_group_advanced_settings?.account_leverage,
-          getValueOrDefault(platform_group.account_leverage, defaultSettings?.account_leverage)
-        );
+        platform_group_advanced_settings?.account_leverage,
+        getValueOrDefault(platform_group.account_leverage, defaultSettings?.account_leverage)
+      );
     const profit_split = getValueOrDefault(
       platform_group_advanced_settings?.profit_split,
       getValueOrDefault(platform_group.profit_split, defaultSettings?.profit_split)
@@ -283,31 +267,31 @@ async function create_platform_account(
       return user.email;
     }
 
-     // Calculate amount after discount
-     const originalAmount = Number(platform_group.prices);
-     let amountTotal = originalAmount;
+    // Calculate amount after discount
+    const originalAmount = Number(platform_group.prices);
+    let amountTotal = originalAmount;
 
-     // Apply discount if discount code is provided
-     if (discountCodeRecord && discountCodeRecord.discount) {
-       const discountPercentage = Number(discountCodeRecord.discount);
-       const discountAmount = (originalAmount * discountPercentage) / 100;
-       amountTotal = originalAmount - discountAmount;
-       // Round to 2 decimal places
-       amountTotal = Math.round(amountTotal * 100) / 100;
-     }
+    // Apply discount if discount code is provided
+    if (discountCodeRecord && discountCodeRecord.discount) {
+      const discountPercentage = Number(discountCodeRecord.discount);
+      const discountAmount = (originalAmount * discountPercentage) / 100;
+      amountTotal = originalAmount - discountAmount;
+      // Round to 2 decimal places
+      amountTotal = Math.round(amountTotal * 100) / 100;
+    }
 
 
     const purchaseData = {
-        user_uuid: user.uuid,
-        amount_total: amountTotal,
-        original_amount: originalAmount,
-        payment_method: "AWARD",
-        payment_status: 1,
-        user_data: JSON.stringify({
-          first_name: user.first_name,
-          last_name: user.last_name,
-        }),
-        purchase_type: award_type === "FREE_TRIAL" ? "free_trial_challenge" : "challenge",
+      user_uuid: user.uuid,
+      amount_total: amountTotal,
+      original_amount: originalAmount,
+      payment_method: "AWARD",
+      payment_status: 1,
+      user_data: JSON.stringify({
+        first_name: user.first_name,
+        last_name: user.last_name,
+      }),
+      purchase_type: award_type === "FREE_TRIAL" ? "free_trial_challenge" : "challenge",
     };
 
     // Add discount_uuid if discount code is provided
@@ -320,14 +304,14 @@ async function create_platform_account(
       purchaseData.payment_transaction_id = payment_transaction_id;
     }
 
-   const purchaseRes = await knex("purchases")
-     .insert(purchaseData)
-     .returning("*")
-     .then((rows) => rows[0]);
+    const purchaseRes = await knex("purchases")
+      .insert(purchaseData)
+      .returning("*")
+      .then((rows) => rows[0]);
 
-   // Attach non-persisted fields needed for HubSpot sync
-   purchaseRes.email = user.email;
-   purchaseRes.hubspot_id = user.hubspot_id;
+    // Attach non-persisted fields needed for HubSpot sync
+    purchaseRes.email = user.email;
+    purchaseRes.hubspot_id = user.hubspot_id;
 
     const platformRes = await knex("platform_accounts")
       .insert({
@@ -391,8 +375,8 @@ async function create_platform_account(
       max_trading_days: platform_group?.max_trading_days ?? max_trading_days ?? 30,
       requires_stop_loss: false,
       requires_take_profit: false,
-      max_risk_per_symbol: award_type === "FREE_TRIAL" 
-        ? (platform_group_advanced_settings?.max_risk_per_symbol ?? 2) 
+      max_risk_per_symbol: award_type === "FREE_TRIAL"
+        ? (platform_group_advanced_settings?.max_risk_per_symbol ?? 2)
         : undefined
     };
 
@@ -419,22 +403,22 @@ async function create_platform_account(
       await knex("platform_account_subtags").insert(subtagAttachments);
     }
 
-     // Sync purchase/account data to HubSpot (non-blocking for DB transaction)
+    // Sync purchase/account data to HubSpot (non-blocking for DB transaction)
     purchaseHubspotSync({ purchaseData: purchaseRes })
-     .then(async purchaseHubsportResponse => {
-       if (purchaseHubsportResponse?.data) {
-        purchaseRes.purchase_hubspot_id = purchaseHubsportResponse?.data?.data; // Append hubspot purchase id
-         // Fire-and-forget platform account sync (do not return or await)
-         await platformAccountHubspotSync({
-           platformRes,
-           purchaseData:purchaseRes,
-           platformGroup:platform_group
-         });
-       }
-     })
-     .catch(error => {
-       console.error('Error syncing purchase with HubSpot:', error);
-     });
+      .then(async purchaseHubsportResponse => {
+        if (purchaseHubsportResponse?.data) {
+          purchaseRes.purchase_hubspot_id = purchaseHubsportResponse?.data?.data; // Append hubspot purchase id
+          // Fire-and-forget platform account sync (do not return or await)
+          await platformAccountHubspotSync({
+            platformRes,
+            purchaseData: purchaseRes,
+            platformGroup: platform_group
+          });
+        }
+      })
+      .catch(error => {
+        console.error('Error syncing purchase with HubSpot:', error);
+      });
     // storing the activity logs
     await storeActivityLog({
       user_uuid: user.uuid,
@@ -481,31 +465,31 @@ async function create_platform_account(
 }
 
 const sendEmailForNewPurchase = async (platformAccount, userData) => {
-   // Send challenge credentials email notification
-   const apiUrl = `${process.env.EMAIL_API_URL}/api/v1/send-email`;
+  // Send challenge credentials email notification
+  const apiUrl = `${process.env.EMAIL_API_URL}/api/v1/send-email`;
 
-   const emailData = {
-       email: userData.email,
-       email_type: "CHALLENGE_CREDENTIALS",
-       data: {
-           first_name: userData.first_name,
-           account_type: platformAccount.account_type,
-           account_balance: platformAccount.initial_balance,
-           account_stages: platformAccount.account_stage,
-           account_number: platformAccount?.platform_login_id,
-           account_password: platformAccount?.main_password,
-           investor_password: platformAccount?.investor_password
-       }
-   };
+  const emailData = {
+    email: userData.email,
+    email_type: "CHALLENGE_CREDENTIALS",
+    data: {
+      first_name: userData.first_name,
+      account_type: platformAccount.account_type,
+      account_balance: platformAccount.initial_balance,
+      account_stages: platformAccount.account_stage,
+      account_number: platformAccount?.platform_login_id,
+      account_password: platformAccount?.main_password,
+      investor_password: platformAccount?.investor_password
+    }
+  };
 
- try {
-   await emailService(apiUrl, emailData, "POST");
+  try {
+    await emailService(apiUrl, emailData, "POST");
 
- } catch (error) {
-   console.log(error);
-   // Continue execution even if email fails
-   captureException(error);
- }
+  } catch (error) {
+    console.log(error);
+    // Continue execution even if email fails
+    captureException(error);
+  }
 }
 
 const getFreeTrialStats = async () => {
