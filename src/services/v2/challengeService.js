@@ -108,7 +108,11 @@ const createFreeTrialAccount = async (requestBody, tokenData) => {
       throw new Error("Invalid free trial code");
     }
 
-    if (freeTrialCodes.used_by_user_uuid) {
+    const freeTrialCodeUsages = await knex("free_trial_code_usages")
+      .where("code", free_trial_code)
+      .first();
+
+    if (freeTrialCodeUsages) {
       throw new Error("Free trial code already used.");
     }
 
@@ -142,6 +146,11 @@ const createFreeTrialAccount = async (requestBody, tokenData) => {
     if (!user) {
       throw new Error("User not found");
     }
+
+    await knex("free_trial_codes_usages").insert({
+      code: freeTrialCodes.code,
+      used_by_user_uuid: loggedInUserUuid
+    })
 
     // Use the same create_platform_account function as original award logic
     // Pass empty arrays for optional params since free trial doesn't use them
@@ -188,6 +197,13 @@ const createFreeTrialAccount = async (requestBody, tokenData) => {
       failedUsers: [],
     };
   } catch (error) {
+    await knex("free_trial_codes_usages")
+      .where({
+        code: freeTrialCodes.code,
+        used_by_user_uuid: loggedInUserUuid
+      })
+      .del()
+
     console.error("Error creating free trial:", error);
     captureException(error, {
       operation: "service_freeTrial_v2",
