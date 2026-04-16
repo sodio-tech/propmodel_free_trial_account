@@ -14,7 +14,7 @@ export async function up(knex) {
     table
       .foreign("used_by_user_uuid")
       .references("uuid")
-      .inTable("free_trial_codes")
+      .inTable("users")
       .onDelete("CASCADE")
       .onUpdate("CASCADE");
 

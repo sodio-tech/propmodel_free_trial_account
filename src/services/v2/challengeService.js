@@ -84,7 +84,6 @@ const createFreeTrialAccount = async (requestBody, tokenData) => {
   const loggedInUserUuid = tokenData.uuid;
 
   try {
-
     // NEW: Get active free trial settings to find platform_group_uuid
     const freeTrialSettings = await knex("free_trial_settings")
       .where("status", 1)
@@ -109,7 +108,7 @@ const createFreeTrialAccount = async (requestBody, tokenData) => {
       throw new Error("Invalid free trial code");
     }
 
-    const freeTrialCodeUsages = await knex("free_trial_code_usages")
+    const freeTrialCodeUsages = await knex("free_trial_codes_usages")
       .where("code", free_trial_code)
       .first();
 
@@ -147,6 +146,11 @@ const createFreeTrialAccount = async (requestBody, tokenData) => {
     if (!user) {
       throw new Error("User not found");
     }
+
+    console.log({
+      code: freeTrialCodes.code,
+      used_by_user_uuid: loggedInUserUuid
+    })
 
     await knex("free_trial_codes_usages").insert({
       code: freeTrialCodes.code,
