@@ -79,10 +79,11 @@ const emailService = async (url, data, method = "POST") => {
  * @returns {Object} - Free trial account created
  */
 const createFreeTrialAccount = async (requestBody, tokenData) => {
+  const { free_trial_code } = requestBody;
+
   const loggedInUserUuid = tokenData.uuid;
 
   try {
-    const { free_trial_code } = requestBody;
 
     // NEW: Get active free trial settings to find platform_group_uuid
     const freeTrialSettings = await knex("free_trial_settings")
@@ -199,7 +200,7 @@ const createFreeTrialAccount = async (requestBody, tokenData) => {
   } catch (error) {
     await knex("free_trial_codes_usages")
       .where({
-        code: freeTrialCodes.code,
+        code: free_trial_code,
         used_by_user_uuid: loggedInUserUuid
       })
       .del()
