@@ -12,16 +12,16 @@ import { captureException } from "propmodel_sentry_core";
  */
 async function walletRechargeService(params = {}) {
   try {
-    const baseUrl = process.env.WALLET_API_URL || process.env.WALLET_API_BASE_URL || process.env.WALLET_BASE_URL;
-    const apiKey = process.env.WALLET_API_KEY || process.env.WALLET_API_TOKEN;
-    
+    const baseUrl = process.env.WALLET_API_BASE_URL;
+    const apiKey = process.env.WALLET_API_KEY;
+
     if (!baseUrl) {
       throw new Error("WALLET_API_URL is not configured");
     }
-    
+
     const walletApiUrl = new URL(
-        "/api/v1/wallet/balance/add",
-        baseUrl.startsWith('http') ? baseUrl : `https://${baseUrl}`
+      "/api/v1/wallet/balance/add",
+      baseUrl.startsWith('http') ? baseUrl : `https://${baseUrl}`
     ).href;
 
     const response = await axios.post(walletApiUrl, params, {
@@ -30,7 +30,7 @@ async function walletRechargeService(params = {}) {
         "apikey": apiKey,
       },
     });
-    
+
     return response;
   } catch (error) {
     captureException(error);
