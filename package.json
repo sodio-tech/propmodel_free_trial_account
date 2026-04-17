@@ -24,11 +24,12 @@
     "@faker-js/faker": "^9.7.0",
     "axios": "^1.8.4",
     "bcrypt": "^5.1.1",
-    "bull": "^4.16.5",
     "bcryptjs": "^3.0.2",
+    "bull": "^4.16.5",
     "cors": "^2.8.5",
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
+    "express-rate-limit": "^8.3.2",
     "helmet": "^8.0.0",
     "joi": "^17.13.3",
     "jsonwebtoken": "^9.0.2",
@@ -37,8 +38,8 @@
     "moment-timezone": "^0.5.47",
     "pg": "^8.13.3",
     "propmodel_api_core": "github:sodio-tech/propmodel_api_core",
-    "redis": "^4.7.0",
-    "propmodel_sentry_core": "github:sodio-tech/propmodel_sentry"
+    "propmodel_sentry_core": "github:sodio-tech/propmodel_sentry",
+    "redis": "^4.7.0"
   },
   "jest": {
     "transform": {}
