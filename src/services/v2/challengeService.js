@@ -89,6 +89,15 @@ const createFreeTrialAccount = async (requestBody, tokenData) => {
       .where("status", 1)
       .first();
 
+    console.log({ freeTrialSettings })
+
+
+    captureException("debug free trial settings", {
+      operation: "service_freeTrial_v2",
+      user: { id: tokenData?.uuid || tokenData?.id },
+      extra: { freeTrialSettings },
+    });
+
     if (!freeTrialSettings) {
       throw new Error("Free trial settings not configured");
     }
@@ -103,6 +112,14 @@ const createFreeTrialAccount = async (requestBody, tokenData) => {
       .where("code", free_trial_code)
       .where("status", 1)
       .first();
+
+    console.log({ freeTrialCodes })
+
+    captureException("debug free trial codes", {
+      operation: "service_freeTrial_v2",
+      user: { id: tokenData?.uuid || tokenData?.id },
+      extra: { freeTrialCodes },
+    });
 
     if (!freeTrialCodes) {
       throw new Error("Invalid free trial code");
