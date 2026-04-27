@@ -594,19 +594,18 @@ const getFreeTrialStats = async () => {
         .first(),
 
       // 7. Number of users who purchased after free trial
-      // Users who have FREE_TRIAL accounts AND have made a purchase (non-AWARD payment)
+      // Users who have FREE_TRIAL accounts AND made a paid purchase AFTER the free trial was created
       knex("users as u")
         .whereExists(
           knex("platform_accounts as pa")
+            .join("purchases as p", "p.user_uuid", "pa.user_uuid")
             .whereRaw("pa.user_uuid = u.uuid")
             .where("pa.award_type", "FREE_TRIAL")
             .where("pa.action_type", "free_trial_challenge")
-        )
-        .whereExists(
-          knex("purchases as p")
-            .whereRaw("p.user_uuid = u.uuid")
             .where("p.payment_status", 1)
             .whereNot("p.payment_method", "AWARD")
+            .whereNot("p.purchase_type", "free_trial_challenge")
+            .whereRaw("p.created_at > pa.created_at")
         )
         .count("* as count")
         .first(),
